@@ -20,6 +20,7 @@ const monthlyRoutes = require("./routes/monthlyRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const streamRoutes = require("./routes/streamRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const poyaRoutes = require("./routes/poyaRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -49,6 +50,7 @@ app.use("/api/monthly", monthlyRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/streams", streamRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/poya", poyaRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

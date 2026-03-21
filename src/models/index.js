@@ -13,6 +13,7 @@ const MonthlyDonation = require('./MonthlyDonation');
 const ContactMessage = require('./ContactMessage');
 const ChatMessage = require('./ChatMessage');
 const Notification = require('./Notification');
+const PoyaCalendar = require("./PoyaCalendar");
 
 // Associations
 Event.hasMany(EventRegistration, { foreignKey: 'eventId', onDelete: 'CASCADE' });
@@ -41,17 +42,23 @@ User.hasMany(DanaBooking, { foreignKey: 'requestUserId', as: 'requestedDanaBooki
 DanaBooking.belongsTo(User, { foreignKey: 'requestUserId', as: 'requestUser' });
 
 // Notifications
-User.hasMany(Notification, { foreignKey: 'userId', onDelete: 'CASCADE' });
-Notification.belongsTo(User, { foreignKey: 'userId' });
+// User.hasMany(Notification, { foreignKey: 'userId', onDelete: 'CASCADE' });
+// Notification.belongsTo(User, { foreignKey: 'userId' });
 
-Notification.belongsTo(DanaBooking, { foreignKey: 'bookingId' });
-DanaBooking.hasMany(Notification, { foreignKey: 'bookingId' });
+// Notification.belongsTo(DanaBooking, { foreignKey: 'bookingId' });
+// DanaBooking.hasMany(Notification, { foreignKey: 'bookingId' });
 
 Event.hasMany(EventRegistration, { foreignKey: "eventId", onDelete: "CASCADE" });
 EventRegistration.belongsTo(Event, { foreignKey: "eventId" });
 
 User.hasMany(EventRegistration, { foreignKey: "userId" });
 EventRegistration.belongsTo(User, { foreignKey: "userId" });
+
+User.hasMany(Notification, { foreignKey: "userId", onDelete: "CASCADE" });
+Notification.belongsTo(User, { foreignKey: "userId" });
+
+DanaBooking.hasMany(Notification, { foreignKey: "bookingId", onDelete: "CASCADE" });
+Notification.belongsTo(DanaBooking, { foreignKey: "bookingId" });
 
 const initDb = async () => {
   await sequelize.sync({ alter: true });
@@ -73,4 +80,5 @@ module.exports = {
   ContactMessage,
   ChatMessage,
   Notification,
+  PoyaCalendar,
 };
