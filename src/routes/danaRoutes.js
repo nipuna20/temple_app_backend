@@ -5,7 +5,7 @@ const { authenticate, requireAdmin } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Create a booking or request on an existing booking
+// Create booking OR request existing booking
 router.post("/", authenticate, async (req, res) => {
   try {
     const {
@@ -14,10 +14,18 @@ router.post("/", authenticate, async (req, res) => {
       recurring = false,
       recurrenceType = null,
       requestMessage = "",
+      address = "",
+      phone = "",
     } = req.body;
 
     if (!date || !mealType) {
       return res.status(400).json({ message: "Date and mealType are required" });
+    }
+
+    if (!String(address).trim() || !String(phone).trim()) {
+      return res.status(400).json({
+        message: "Physical address and mobile number are required",
+      });
     }
 
     let normalizedDate;
@@ -47,7 +55,7 @@ router.post("/", authenticate, async (req, res) => {
       ],
     });
 
-    // Create new booking if slot is free
+    // Free slot -> create new booking
     if (!booking) {
       const created = await DanaBooking.create({
         date: normalizedDate,
@@ -57,27 +65,29 @@ router.post("/", authenticate, async (req, res) => {
         userId: req.user.id,
         status: "pending",
         requestStatus: "none",
+        ownerAddress: String(address).trim(),
+        ownerPhone: String(phone).trim(),
       });
 
       try {
         const admins = await User.findAll({
           where: { role: "admin" },
-          attributes: ["id", "firstName", "lastName"],
+          attributes: ["id"],
         });
 
         const dateStr = normalizedDate.toISOString().substring(0, 10);
 
-        const promises = admins.map((admin) =>
-          Notification.create({
-            userId: admin.id,
-            bookingId: created.id,
-            message: `New Dana booking submitted for ${mealType} on ${dateStr}. Please review and update the status.`,
-          })
+        await Promise.all(
+          admins.map((admin) =>
+            Notification.create({
+              userId: admin.id,
+              bookingId: created.id,
+              message: `New Dana booking submitted for ${mealType} on ${dateStr}.`,
+            })
+          )
         );
-
-        await Promise.all(promises);
       } catch (notifyErr) {
-        console.error("Error creating admin notifications for new Dana booking", notifyErr);
+        console.error("Error creating admin notification:", notifyErr);
       }
 
       return res.json({
@@ -87,28 +97,34 @@ router.post("/", authenticate, async (req, res) => {
       });
     }
 
-    // Do not allow same user to request own slot
-    if (booking.userId && booking.userId === req.user.id) {
+    // same owner cannot request own slot
+    if (booking.userId === req.user.id) {
       return res.status(400).json({ message: "You already own this Dana slot." });
     }
 
-    // Prevent multiple pending requests
+    // block multiple pending requests
     if (
       booking.requestStatus === "pending" &&
       booking.requestUserId &&
       booking.requestUserId !== req.user.id
     ) {
-      return res.status(400).json({ message: "This slot already has a pending request." });
+      return res.status(400).json({
+        message: "This slot already has a pending request.",
+      });
     }
 
     if (booking.requestStatus === "pending" && booking.requestUserId === req.user.id) {
-      return res.status(400).json({ message: "You already requested this Dana slot." });
+      return res.status(400).json({
+        message: "You already requested this Dana slot.",
+      });
     }
 
     await booking.update({
       requestUserId: req.user.id,
       requestStatus: "pending",
       requestMessage: String(requestMessage || "").trim() || null,
+      requestAddress: String(address).trim(),
+      requestPhone: String(phone).trim(),
     });
 
     if (booking.userId) {
@@ -127,8 +143,8 @@ router.post("/", authenticate, async (req, res) => {
         userId: booking.userId,
         bookingId: booking.id,
         message: note
-          ? `${requesterName} requested your ${mealType} Dana booking on ${dateStr}. Message: ${note}`
-          : `${requesterName} requested your ${mealType} Dana booking on ${dateStr}. Are you okay to give this date?`,
+          ? `${requesterName} requested your ${mealType} Dana booking on ${dateStr}.`
+          : `${requesterName} requested your ${mealType} Dana booking on ${dateStr}.`,
       });
     }
 
@@ -150,40 +166,35 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
-// Logged-in user's Dana bookings
-// IMPORTANT: this must be ABOVE "/:id/respond" and "/:id/status"
+// Logged-in user's own bookings
 router.get("/my-bookings", authenticate, async (req, res) => {
   try {
     const bookings = await DanaBooking.findAll({
       where: { userId: req.user.id },
       order: [["date", "ASC"]],
+      include: [
+        { model: User, attributes: ["id", "firstName", "lastName", "email"] },
+        { model: User, as: "requestUser", attributes: ["id", "firstName", "lastName", "email"] },
+      ],
     });
 
     res.json(bookings);
   } catch (err) {
-    console.error("Error fetching my Dana bookings:", err);
+    console.error(err);
     res.status(500).json({ message: "Error fetching my Dana bookings" });
   }
 });
 
-// Admin list with owner and requester details
+// Admin list
 router.get("/", authenticate, requireAdmin, async (req, res) => {
   try {
     const bookings = await DanaBooking.findAll({
       include: [
-        {
-          model: User,
-          attributes: ["id", "firstName", "lastName", "email"],
-        },
-        {
-          model: User,
-          as: "requestUser",
-          attributes: ["id", "firstName", "lastName", "email"],
-        },
+        { model: User, attributes: ["id", "firstName", "lastName", "email"] },
+        { model: User, as: "requestUser", attributes: ["id", "firstName", "lastName", "email"] },
       ],
       order: [["date", "ASC"], ["mealType", "ASC"]],
     });
-
     res.json(bookings);
   } catch (err) {
     console.error(err);
@@ -191,7 +202,7 @@ router.get("/", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// Public calendar data
+// Public calendar
 router.get("/calendar", async (req, res) => {
   try {
     const bookings = await DanaBooking.findAll({
@@ -207,6 +218,10 @@ router.get("/calendar", async (req, res) => {
         "requestUserId",
         "requestStatus",
         "requestMessage",
+        "ownerAddress",
+        "ownerPhone",
+        "requestAddress",
+        "requestPhone",
       ],
       order: [["date", "ASC"], ["mealType", "ASC"]],
     });
@@ -218,25 +233,43 @@ router.get("/calendar", async (req, res) => {
   }
 });
 
-// Booked user or admin accepts/rejects request
+// Accept / reject request
 router.put("/:id/respond", authenticate, async (req, res) => {
   try {
     const booking = await DanaBooking.findByPk(req.params.id);
+
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
     const { status } = req.body;
+
     if (!["approved", "declined"].includes(status)) {
       return res.status(400).json({ message: "Invalid response status" });
     }
 
-    if (booking.requestStatus !== "pending" || !booking.requestUserId) {
-      return res.status(400).json({ message: "This booking has no pending request." });
+    if (!booking.requestUserId) {
+      return res.status(400).json({ message: "This booking has no requester." });
+    }
+
+    if (booking.requestStatus !== "pending") {
+      return res.status(400).json({
+        message: `This booking request is not pending. Current status: ${booking.requestStatus}`,
+      });
     }
 
     if (req.user.role !== "admin" && req.user.id !== booking.userId) {
-      return res.status(403).json({ message: "Only the booked user can respond to this request." });
+      return res.status(403).json({
+        message: "Only the booked user or admin can respond to this request.",
+      });
+    }
+
+    const requestUser = await User.findByPk(booking.requestUserId);
+
+    if (!requestUser) {
+      return res.status(400).json({
+        message: "The requesting user no longer exists.",
+      });
     }
 
     const dateStr = new Date(booking.date).toISOString().substring(0, 10);
@@ -245,9 +278,13 @@ router.put("/:id/respond", authenticate, async (req, res) => {
     if (status === "approved") {
       await booking.update({
         userId: requestUserId,
+        ownerAddress: booking.requestAddress,
+        ownerPhone: booking.requestPhone,
         requestUserId: null,
         requestStatus: "none",
         requestMessage: null,
+        requestAddress: null,
+        requestPhone: null,
       });
 
       await Notification.create({
@@ -260,6 +297,8 @@ router.put("/:id/respond", authenticate, async (req, res) => {
         requestUserId: null,
         requestStatus: "none",
         requestMessage: null,
+        requestAddress: null,
+        requestPhone: null,
       });
 
       await Notification.create({
@@ -283,7 +322,7 @@ router.put("/:id/respond", authenticate, async (req, res) => {
   }
 });
 
-// Admin booking status update
+// Admin update booking status
 router.put("/:id/status", authenticate, requireAdmin, async (req, res) => {
   try {
     const booking = await DanaBooking.findByPk(req.params.id);

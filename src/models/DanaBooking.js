@@ -1,7 +1,7 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes, Model } = require("sequelize");
+const sequelize = require("../config/database");
 
-class DanaBooking extends Model {}
+class DanaBooking extends Model { }
 
 DanaBooking.init(
   {
@@ -11,51 +11,74 @@ DanaBooking.init(
       primaryKey: true,
     },
     date: {
-      type: DataTypes.DATE,
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+    },
+    mealType: {
+      type: DataTypes.STRING,
       allowNull: false,
     },
     recurring: {
       type: DataTypes.BOOLEAN,
+      allowNull: false,
       defaultValue: false,
     },
     recurrenceType: {
-      type: DataTypes.ENUM('daily', 'monthly', 'annually'),
+      type: DataTypes.STRING,
       allowNull: true,
     },
-    // Current owner of the booking slot.
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
-    // Booking approval status for admin review.
+
+    // admin booking status
     status: {
-      type: DataTypes.ENUM('pending', 'approved', 'declined'),
-      defaultValue: 'pending',
-    },
-    mealType: {
-      type: DataTypes.ENUM('breakfast', 'lunch'),
+      type: DataTypes.ENUM("pending", "approved", "declined"),
       allowNull: false,
+      defaultValue: "pending",
     },
-    // Request flow: do NOT create a second booking row. Instead, store the
-    // requesting user directly on the original booking.
-    requestUserId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
+
+    // request flow
     requestStatus: {
-      type: DataTypes.ENUM('none', 'pending', 'accepted', 'rejected'),
+      type: DataTypes.ENUM("none", "pending"),
       allowNull: false,
-      defaultValue: 'none',
+      defaultValue: "none",
     },
     requestMessage: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+
+    userId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    requestUserId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+
+    // current owner details
+    ownerAddress: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    ownerPhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    // pending requester details
+    requestAddress: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    requestPhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,
-    modelName: 'DanaBooking',
-    tableName: 'dana_bookings',
+    modelName: "DanaBooking",
+    tableName: "dana_bookings",
   }
 );
 
